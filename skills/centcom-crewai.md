@@ -6,22 +6,60 @@ user_invocable: true
 
 # CENTCOM + CrewAI Skill
 
-Use this skill when a user wants CrewAI human review managed in CENTCOM.
+Use this skill when a user wants CrewAI human review managed in CENTCOM with a webhook bridge.
+
+## What to build
+
+Build a bridge service between CrewAI HITL webhooks and CENTCOM:
+
+1. Receive CrewAI human review payload.
+2. Create CENTCOM request with task context.
+3. Wait for operator decision.
+4. Call CrewAI resume endpoint with mapped feedback.
 
 ## Implementation steps
 
 1. Configure CrewAI task/workflow to emit webhook HITL events.
-2. Convert incoming review event into a CENTCOM request.
-3. Route operator decision back into CrewAI resume API.
-4. Ensure idempotency on bridge events.
+2. Persist `execution_id` + `task_id` for idempotent resume.
+3. Convert incoming review event into CENTCOM `approval` or `free_text` request.
+4. Include CrewAI IDs in CENTCOM `metadata`.
+5. On CENTCOM response, map:
+   - operator approve -> `is_approve: true`
+   - operator reject -> `is_approve: false`
+6. Call CrewAI `/resume` endpoint and include required webhook URLs when your CrewAI setup requires them.
 
-## Short example
+## Bridge request example
 
 ```python
 req = centcom.create_request(
     type="approval",
     question="Approve CrewAI task output?",
     context=task_output,
+    required_role="manager",
     metadata={"execution_id": execution_id, "task_id": task_id},
 )
 ```
+
+## Resume mapping example
+
+```json
+{
+  "execution_id": "abcd1234",
+  "task_id": "review_task",
+  "human_feedback": "Approved with rollback plan",
+  "is_approve": true
+}
+```
+
+## Reliability checklist
+
+- Verify webhook auth/signature on inbound CrewAI events.
+- Add idempotency keys for CENTCOM request creation.
+- Deduplicate resume calls by `execution_id + task_id`.
+- Log transitions: received -> sent_to_centcom -> decided -> resumed.
+
+## Common mistakes to avoid
+
+- Losing correlation IDs between kickoff and resume.
+- Not re-sending webhook URLs in CrewAI resume flow when required.
+- Sending verbose, unstructured feedback back into the run context.
