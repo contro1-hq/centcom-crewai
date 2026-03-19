@@ -8,6 +8,23 @@ user_invocable: true
 
 Use this skill when a user wants CrewAI human review managed in CENTCOM with a webhook bridge.
 
+## Required configuration
+
+Set your CENTCOM API key before creating requests:
+
+```bash
+CENTCOM_API_KEY=cc_live_xxx
+```
+
+Initialize the client from environment:
+
+```python
+import os
+from centcom import CentcomClient
+
+centcom = CentcomClient(api_key=os.environ["CENTCOM_API_KEY"])
+```
+
 ## What to build
 
 Build a bridge service between CrewAI HITL webhooks and CENTCOM:
