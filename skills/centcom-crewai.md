@@ -13,7 +13,8 @@ Use this skill when a user wants CrewAI human review managed in CENTCOM with a w
 Set your CENTCOM API key before creating requests:
 
 ```bash
-CENTCOM_API_KEY=cc_live_xxx
+CENTCOM_API_KEY=your_centcom_api_key
+CENTCOM_WEBHOOK_SECRET=whsec_your_signing_secret
 ```
 
 Initialize the client from environment:
@@ -71,6 +72,7 @@ req = centcom.create_request(
 ## Reliability checklist
 
 - Verify webhook auth/signature on inbound CrewAI events.
+- Verify CENTCOM callback signatures using `CENTCOM_WEBHOOK_SECRET`.
 - Add idempotency keys for CENTCOM request creation.
 - Deduplicate resume calls by `execution_id + task_id`.
 - Log transitions: received -> sent_to_centcom -> decided -> resumed.

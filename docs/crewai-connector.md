@@ -11,7 +11,8 @@ This guide shows how to connect CrewAI webhook-based HITL with CENTCOM.
 ## Environment setup (bridge service)
 
 ```bash
-CENTCOM_API_KEY=cc_live_xxx
+CENTCOM_API_KEY=your_centcom_api_key
+CENTCOM_WEBHOOK_SECRET=whsec_your_signing_secret
 ```
 
 ## Recommended flow
@@ -62,6 +63,7 @@ curl -X POST {BASE_URL}/resume \
 ## Production checklist
 
 - Verify inbound webhook authentication/signature from CrewAI.
+- Verify signature headers on CENTCOM callbacks with `CENTCOM_WEBHOOK_SECRET`.
 - Store `execution_id + task_id` to prevent duplicate resume calls.
 - Use idempotency for CENTCOM request creation.
 - Keep feedback concise and relevant before sending to CrewAI resume.
