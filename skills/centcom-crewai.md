@@ -8,12 +8,17 @@ user_invocable: true
 
 Use this skill when a user wants CrewAI human review managed in CENTCOM with a webhook bridge.
 
-## Required configuration
+## Installation
 
-Set your CENTCOM API key before creating requests:
+```bash
+pip install centcom flask python-dotenv
+```
+
+## Required configuration
 
 ```bash
 CENTCOM_API_KEY=your_centcom_api_key
+CENTCOM_BASE_URL=https://api.contro1.com/api/centcom/v1
 CENTCOM_WEBHOOK_SECRET=whsec_your_signing_secret
 ```
 
@@ -25,6 +30,15 @@ from centcom import CentcomClient
 
 centcom = CentcomClient(api_key=os.environ["CENTCOM_API_KEY"])
 ```
+
+## Webhook endpoint (production)
+
+CENTCOM sends the operator's decision to a URL you own. Expose an endpoint that:
+1. Verifies `centcom-signature` using `CENTCOM_WEBHOOK_SECRET`.
+2. Reads `approved` / `value` from the payload body.
+3. Calls the CrewAI `/resume` endpoint with mapped feedback.
+
+See `examples/crewai_bridge.py` for a runnable webhook + resume template.
 
 ## What to build
 

@@ -1,91 +1,55 @@
 # centcom-crewai
 
-Official CENTCOM connector guides and examples for CrewAI HITL workflows.
+CrewAI starter kit for Contro1/CENTCOM webhook approval flows.
 
-## What this repo provides
+## Protocol
 
-- A webhook-first integration playbook for CrewAI human review events.
-- Clear mapping between CrewAI kickoff/resume and CENTCOM approvals.
-- A skill file for consistent AI-assisted implementation.
+This starter uses **Contro1 Integration Protocol v1**:
 
-## Security defaults (required)
+- canonical request object (`Contro1Request`)
+- canonical response object (`Contro1Response`)
+- continuation mode: `instruction`
+- routing metadata in protocol request
 
-- Use environment variables only. Never hardcode secrets.
-- Bridge service credentials:
+## Files
+
+- `docs/crewai-connector.md`
+- `skills/centcom-crewai.md`
+- `.env.example`
+- `requirements.txt`
+- `examples/crewai_bridge.py`
+
+## Quick Start
 
 ```bash
-CENTCOM_API_KEY=your_centcom_api_key
-CENTCOM_WEBHOOK_SECRET=whsec_your_signing_secret
+python -m venv .venv
+. .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
+python examples/crewai_bridge.py
 ```
 
-- Verify both directions:
-  - Inbound CrewAI webhook authentication/signature.
-  - Inbound CENTCOM callback signature headers.
+Bridge runs on `http://localhost:8082`.
 
-## Recommended architecture
+## Smoke Test
 
-1. CrewAI emits review payload to `humanInputWebhook`.
-2. Bridge converts review into CENTCOM request with correlation metadata.
-3. Operator decides in CENTCOM.
-4. Bridge maps decision and calls CrewAI `/resume`.
-
-## Quick Start snippets
-
-Kickoff:
+Simulate CrewAI webhook event:
 
 ```bash
-curl -X POST {BASE_URL}/kickoff \
-  -H "Authorization: Bearer YOUR_API_TOKEN" \
+curl -X POST http://localhost:8082/crewai/hitl \
   -H "Content-Type: application/json" \
   -d '{
-    "inputs": { "topic": "AI Research" },
-    "humanInputWebhook": {
-      "url": "https://your-app.com/crewai/hitl",
-      "authentication": { "strategy": "bearer", "token": "your-webhook-secret-token" }
-    }
+    "execution_id": "exec-77",
+    "task_id": "task-review",
+    "summary": "Approve publishing plan?"
   }'
 ```
 
-Resume:
+Then approve/deny in CENTCOM and verify `/centcom-callback` logs a mapped CrewAI resume payload.
 
-```json
-{
-  "execution_id": "abcd1234",
-  "task_id": "review_task",
-  "human_feedback": "Approved with rollback plan.",
-  "is_approve": true
-}
-```
+## Security defaults
 
-## Mapping contract
-
-- CrewAI -> CENTCOM:
-  - `execution_id`, `task_id`, summary, risk context.
-- CENTCOM request fields:
-  - `type`, `question`, `context`, `required_role`, `metadata`.
-- CENTCOM -> CrewAI:
-  - `is_approve`, `human_feedback`, correlation IDs.
-
-## Production checklist
-
-- Deduplicate by `execution_id + task_id` before resume.
-- Add idempotency keys when creating CENTCOM requests.
-- Log lifecycle states (received -> queued -> decided -> resumed).
-- Keep resume feedback short and actionable.
-- Add timeout fallback path for no-response cases.
-
-## Troubleshooting
-
-- Resume rejected: verify payload field names and IDs.
-- Duplicate resume calls: deduplicate on stable correlation IDs.
-- Missing context in operator screen: ensure metadata includes task details.
-
-## Documentation in this repo
-
-- Guide: `docs/crewai-connector.md`
-- Skill: `skills/centcom-crewai.md`
-
-## Related repositories
-
-- [`centcom`](https://github.com/contro1-hq/centcom)
-- [`centcom-langgraph`](https://github.com/contro1-hq/centcom-langgraph)
+- Use env vars only.
+- Verify CrewAI inbound webhook auth.
+- Verify CENTCOM callback signatures.
+- Deduplicate with deterministic idempotency key: `crewai:{execution_id}:{task_id}`.

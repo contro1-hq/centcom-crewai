@@ -1,17 +1,22 @@
 # CrewAI Connector Guide
 
-This guide shows how to connect CrewAI webhook-based HITL with CENTCOM.
+This guide shows how to connect CrewAI webhook-based HITL with Contro1 approvals using Integration Protocol v1.
 
 ## Prerequisites
 
+- Python 3.10+
 - CrewAI deployment that supports webhook HITL
 - Service endpoint to receive CrewAI HITL callbacks
-- `centcom` client available in the bridge service
+
+```bash
+pip install centcom flask python-dotenv
+```
 
 ## Environment setup (bridge service)
 
 ```bash
 CENTCOM_API_KEY=your_centcom_api_key
+CENTCOM_BASE_URL=https://api.contro1.com/api/centcom/v1
 CENTCOM_WEBHOOK_SECRET=whsec_your_signing_secret
 ```
 
@@ -19,8 +24,19 @@ CENTCOM_WEBHOOK_SECRET=whsec_your_signing_secret
 
 1. Start CrewAI execution with `humanInputWebhook`.
 2. Receive review payload in your bridge service.
-3. Create CENTCOM request with task context.
+3. Create protocol v1 request with task context.
 4. Submit CENTCOM decision back to CrewAI resume endpoint.
+
+## Starter kit
+
+Use `examples/crewai_bridge.py` for a runnable local bridge.
+
+It includes:
+
+- authenticated CrewAI inbound webhook endpoint
+- protocol v1 request creation
+- signature-verified CENTCOM callback receiver
+- CrewAI resume payload mapping template
 
 ## Short example (kickoff)
 
