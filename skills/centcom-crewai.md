@@ -68,9 +68,18 @@ req = centcom.create_request(
     question="Approve CrewAI task output?",
     context=task_output,
     required_role="manager",
+    approval_policy={
+        "mode": "threshold",
+        "required_approvals": 2,
+        "required_roles": ["manager", "admin"],
+        "separation_of_duties": True,
+        "fail_closed_on_timeout": True,
+    },
     metadata={"execution_id": execution_id, "task_id": task_id},
 )
 ```
+
+For high-risk task output, require two-person approval. The first approval is audit-only and CrewAI should not resume until Contro1 sends the final callback after quorum, rejection, or timeout.
 
 ## Resume mapping example
 
@@ -90,9 +99,11 @@ req = centcom.create_request(
 - Add idempotency keys for CENTCOM request creation.
 - Deduplicate resume calls by `execution_id + task_id`.
 - Log transitions: received -> sent_to_centcom -> decided -> resumed.
+- Fail closed if a multi-approval request times out before quorum.
 
 ## Common mistakes to avoid
 
 - Losing correlation IDs between kickoff and resume.
 - Not re-sending webhook URLs in CrewAI resume flow when required.
 - Sending verbose, unstructured feedback back into the run context.
+- Resuming CrewAI after the first approval when quorum is still pending.
