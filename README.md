@@ -53,3 +53,30 @@ Then approve/deny in CENTCOM and verify `/centcom-callback` logs a mapped CrewAI
 - Verify CrewAI inbound webhook auth.
 - Verify CENTCOM callback signatures.
 - Deduplicate with deterministic idempotency key: `crewai:{execution_id}:{task_id}`.
+
+## Human review vs audit log
+
+Use `create_protocol_request` when a CrewAI task must pause for operator guidance. Use `log_action` when the crew has already performed an allowed action and you only need audit evidence.
+
+```python
+thread_id = f"thr_crewai_{stable_hash(execution_id)}"
+
+created = client.create_protocol_request({
+    "title": f"CrewAI review for {task_id}",
+    "request_type": "review",
+    "source": {"integration": "crewai", "run_id": execution_id, "workflow_id": task_id},
+    "continuation": {"mode": "instruction", "callback_url": callback_url},
+    "external_request_id": f"crewai:{execution_id}:{task_id}",
+    "thread_id": thread_id,
+})
+
+client.log_action(
+    action="crewai.task_resume_mapped",
+    summary=f"Mapped operator feedback to CrewAI task {task_id}",
+    source={"integration": "crewai", "workflow_id": task_id, "run_id": execution_id},
+    thread_id=thread_id,
+    in_reply_to={"type": "request", "id": created["id"]},
+)
+```
+
+See the full bridge example at https://github.com/contro1-hq/centcom-crewai/blob/main/examples/crewai_bridge.py.

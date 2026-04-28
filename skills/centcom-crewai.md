@@ -1,3 +1,29 @@
+# Contro1 CrewAI Skill
+
+Use this when wiring CrewAI task review or crew-level approval into Contro1.
+
+## Rules
+
+- Use `execution_id` to derive the Contro1 `thread_id`.
+- Use `external_request_id = crewai:{execution_id}:{task_id}` for idempotency.
+- Use `create_protocol_request` for task reviews that need human input before resume.
+- Use `log_action` for autonomous CrewAI actions and for callback-to-resume mappings.
+- Reply inside an existing thread with `in_reply_to={"type": "request", "id": request_id}`.
+
+## Resume mapping
+
+After the Contro1 callback is verified, convert it to CrewAI's resume payload and log the mapping:
+
+```python
+client.log_action(
+    action="crewai.task_resume_mapped",
+    summary=f"Mapped operator response to CrewAI task {task_id}",
+    source={"integration": "crewai", "workflow_id": task_id, "run_id": execution_id},
+    outcome="success" if approved else "partial",
+    thread_id=thread_id,
+    in_reply_to={"type": "request", "id": request_id},
+)
+```
 ---
 name: centcom-crewai
 description: Guide for integrating CrewAI webhook HITL flows with CENTCOM approvals.
@@ -38,7 +64,7 @@ CENTCOM sends the operator's decision to a URL you own. Expose an endpoint that:
 2. Reads `approved` / `value` from the payload body.
 3. Calls the CrewAI `/resume` endpoint with mapped feedback.
 
-See `examples/crewai_bridge.py` for a runnable webhook + resume template.
+Use the runnable webhook + resume template at https://github.com/contro1-hq/centcom-crewai/blob/main/examples/crewai_bridge.py.
 
 ## What to build
 
@@ -107,3 +133,11 @@ For high-risk task output, require two-person approval. The first approval is au
 - Not re-sending webhook URLs in CrewAI resume flow when required.
 - Sending verbose, unstructured feedback back into the run context.
 - Resuming CrewAI after the first approval when quorum is still pending.
+
+## Full reference links
+
+- Repo: https://github.com/contro1-hq/centcom-crewai
+- Runnable bridge example: https://github.com/contro1-hq/centcom-crewai/blob/main/examples/crewai_bridge.py
+- Skill file source: https://github.com/contro1-hq/centcom-crewai/blob/main/skills/centcom-crewai.md
+- Core Python SDK: https://github.com/contro1-hq/centcom
+- Protocol docs: https://contro1.com/docs/audit-records-and-threads
