@@ -4,15 +4,15 @@ Use this when wiring CrewAI task review or crew-level approval into Contro1.
 
 ## Rules
 
-- Use `execution_id` to derive the Contro1 `thread_id`.
-- Use `external_request_id = crewai:{execution_id}:{task_id}` for idempotency.
+- Use `execution_id` directly as the Contro1 `correlation_id` (no prefix or hashing needed).
+- Use `external_request_id = crewai:{execution_id}:{task_id}` for per-task idempotency.
 - Use `create_protocol_request` for task reviews that need human input before resume.
 - Use `log_action` for autonomous CrewAI actions and for callback-to-resume mappings.
-- Reply inside an existing thread with `in_reply_to={"type": "request", "id": request_id}`.
+- Reply inside an existing case with `in_reply_to={"type": "request", "id": request_id}`.
 
-## Resume mapping
+## Case continuity
 
-After the Contro1 callback is verified, convert it to CrewAI's resume payload and log the mapping:
+After the Contro1 callback is verified, convert it to CrewAI's resume payload and log the mapping in the same case:
 
 ```python
 client.log_action(
@@ -20,10 +20,11 @@ client.log_action(
     summary=f"Mapped operator response to CrewAI task {task_id}",
     source={"integration": "crewai", "workflow_id": task_id, "run_id": execution_id},
     outcome="success" if approved else "partial",
-    thread_id=thread_id,
+    correlation_id=execution_id,
     in_reply_to={"type": "request", "id": request_id},
 )
 ```
+
 ---
 name: centcom-crewai
 description: Guide for integrating CrewAI webhook HITL flows with CENTCOM approvals.
@@ -71,9 +72,24 @@ Use the runnable webhook + resume template at https://github.com/contro1-hq/cent
 Build a bridge service between CrewAI HITL webhooks and CENTCOM:
 
 1. Receive CrewAI human review payload.
-2. Create CENTCOM request with task context.
-3. Wait for operator decision.
-4. Call CrewAI resume endpoint with mapped feedback.
+2. Check Control Map routing for tasks with required roles (see below).
+3. Create CENTCOM request with task context.
+4. Wait for operator decision.
+5. Call CrewAI resume endpoint with mapped feedback.
+
+## Check routing before submitting (Control Map)
+
+For tasks requiring specific reviewer roles, verify routing is satisfiable before creating the request. Cache the result for 5–15 minutes.
+
+```python
+preview = centcom.post("/requests/control-map", {
+    "approval_requirements": {"required_roles": ["manager"], "required_approvals": 1},
+    "approval_policy": {"mode": "single", "fail_closed_on_timeout": True},
+})
+
+if not preview["satisfiable"]:
+    raise RuntimeError(f"Review routing not ready: {preview['warnings']}")
+```
 
 ## Implementation steps
 
@@ -101,6 +117,8 @@ req = centcom.create_request(
         "separation_of_duties": True,
         "fail_closed_on_timeout": True,
     },
+    external_request_id=f"crewai:{execution_id}:{task_id}",
+    correlation_id=execution_id,
     metadata={"execution_id": execution_id, "task_id": task_id},
 )
 ```
@@ -122,17 +140,51 @@ For high-risk task output, require two-person approval. The first approval is au
 
 - Verify webhook auth/signature on inbound CrewAI events.
 - Verify CENTCOM callback signatures using `CENTCOM_WEBHOOK_SECRET`.
-- Add idempotency keys for CENTCOM request creation.
+- Add idempotency keys (`external_request_id`) for CENTCOM request creation.
 - Deduplicate resume calls by `execution_id + task_id`.
 - Log transitions: received -> sent_to_centcom -> decided -> resumed.
 - Fail closed if a multi-approval request times out before quorum.
 
 ## Common mistakes to avoid
 
-- Losing correlation IDs between kickoff and resume.
+- Losing case IDs between kickoff and resume.
 - Not re-sending webhook URLs in CrewAI resume flow when required.
 - Sending verbose, unstructured feedback back into the run context.
 - Resuming CrewAI after the first approval when quorum is still pending.
+
+## Production pattern: Agent Plugin
+
+```python
+from datetime import datetime, timedelta
+from centcom import CentcomClient
+
+class Contro1Plugin:
+    def __init__(self, client: CentcomClient, cache_ttl_minutes: int = 10):
+        self._client = client
+        self._cache: dict = {}
+        self._ttl = timedelta(minutes=cache_ttl_minutes)
+
+    def preview_policy(self, approval_requirements: dict, approval_policy: dict) -> dict:
+        key = str(sorted(approval_requirements.items()))
+        cached = self._cache.get(key)
+        if cached and datetime.utcnow() < cached["expires"]:
+            return cached["data"]
+        result = self._client.post("/requests/control-map", {
+            "approval_requirements": approval_requirements,
+            "approval_policy": approval_policy,
+        })
+        self._cache[key] = {"data": result, "expires": datetime.utcnow() + self._ttl}
+        return result
+
+    def request_human_review(self, payload: dict) -> dict:
+        return self._client.create_protocol_request(payload)
+
+    def log_audit_action(self, payload: dict) -> dict:
+        return self._client.log_action(**payload)
+
+    def resume_from_decision(self, case_id: str) -> dict:
+        return self._client.get(f"/cases/{case_id}")
+```
 
 ## Full reference links
 
@@ -140,4 +192,10 @@ For high-risk task output, require two-person approval. The first approval is au
 - Runnable bridge example: https://github.com/contro1-hq/centcom-crewai/blob/main/examples/crewai_bridge.py
 - Skill file source: https://github.com/contro1-hq/centcom-crewai/blob/main/skills/centcom-crewai.md
 - Core Python SDK: https://github.com/contro1-hq/centcom
-- Protocol docs: https://contro1.com/docs/audit-records-and-threads
+- Protocol docs: https://contro1.com/docs/audit-records-and-cases
+
+## Governance readiness
+
+For teams operating under EU or US AI governance requirements, see:
+- https://contro1.com/guides/eu-ai-act-readiness
+- https://contro1.com/guides/us-ai-governance-readiness
