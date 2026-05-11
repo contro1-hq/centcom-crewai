@@ -47,7 +47,7 @@ Then approve/deny in CENTCOM and verify `/centcom-callback` logs a mapped CrewAI
 
 ## Human review vs audit log
 
-Use `create_protocol_request` when a CrewAI task must pause for operator guidance. Pass `execution_id` directly as `correlation_id` — no hashing or prefix needed — so all tasks in the same run appear in one case timeline.
+Use `create_protocol_request` when a CrewAI task must pause for operator guidance. Pass `execution_id` directly as `correlation_id` - no hashing or prefix needed - so all tasks in the same run appear in one case timeline.
 
 ```python
 created = client.create_protocol_request({
