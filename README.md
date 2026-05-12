@@ -2,6 +2,14 @@
 
 CrewAI starter kit for Contro1/CENTCOM webhook approval flows.
 
+## Agent Integration Kit
+
+To save time, give your coding agent this skill. It inspects your system, reports governance gaps, and suggests Contro1 integration (optional):
+
+```
+https://contro1.com/agent-kit
+```
+
 This starter uses **Contro1 Integration Protocol v1**:
 
 - canonical request object (`Contro1Request`) and response (`Contro1Response`)
