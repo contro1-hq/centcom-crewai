@@ -72,14 +72,14 @@ Use the runnable webhook + resume template at https://github.com/contro1-hq/cent
 Build a bridge service between CrewAI HITL webhooks and CENTCOM:
 
 1. Receive CrewAI human review payload.
-2. Check Control Map routing for tasks with required roles (see below).
+2. Optionally check Control Map routing for tasks with required roles (see below).
 3. Create CENTCOM request with task context.
 4. Wait for operator decision.
 5. Call CrewAI resume endpoint with mapped feedback.
 
-## Check routing before submitting (Control Map)
+## Preview routing when needed (Control Map)
 
-For tasks requiring specific reviewer roles, verify routing is satisfiable before creating the request. Cache the result for 5–15 minutes.
+For tasks requiring specific reviewer roles, Control Map can preview whether routing is satisfiable. Cache the result for 5-15 minutes.
 
 ```python
 preview = centcom.post("/requests/control-map", {
@@ -88,7 +88,7 @@ preview = centcom.post("/requests/control-map", {
 })
 
 if not preview["satisfiable"]:
-    raise RuntimeError(f"Review routing not ready: {preview['warnings']}")
+    print("Routing setup needed:", preview["warnings"])
 ```
 
 ## Implementation steps

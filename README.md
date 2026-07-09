@@ -82,7 +82,7 @@ client.log_action(
 
 ## Control Map preview
 
-Before submitting requests that use `required_roles` or multi-person approval, verify routing is satisfiable. Cache the result for 5–15 minutes.
+For requests that use `required_roles` or multi-person approval, Control Map can preview whether routing is satisfiable. Cache the result for 5-15 minutes.
 
 ```python
 preview = client.post("/requests/control-map", {
@@ -91,8 +91,10 @@ preview = client.post("/requests/control-map", {
 })
 
 if not preview["satisfiable"]:
-    raise RuntimeError(f"Review routing not ready: {preview['warnings']}")
+    print("Routing setup needed:", preview["warnings"])
 ```
+
+Still create the review request when the task needs human input; the final signed decision is what resumes or blocks the workflow.
 
 ## Production pattern: Agent Plugin
 
