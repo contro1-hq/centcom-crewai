@@ -108,7 +108,11 @@ if not preview["satisfiable"]:
 req = centcom.create_request(
     type="approval",
     question="Approve CrewAI task output?",
-    context=task_output,
+    context={
+        "action": {"tool": task_id, "input": task_output},
+        "machine_observed": {"execution_id": execution_id, "task_id": task_id},
+        "agent_reported": {"justification": task_output.pop("reason", None)},
+    },
     required_role="manager",
     approval_policy={
         "mode": "threshold",
@@ -124,6 +128,12 @@ req = centcom.create_request(
 ```
 
 For high-risk task output, require two-person approval. The first approval is audit-only and CrewAI should not resume until Contro1 sends the final callback after quorum, rejection, or timeout.
+
+## Send context the reviewer can trust
+
+Build `context` inside the bridge, at the point where you convert `task_output` into a Contro1 request - not by asking the crew to explain itself afterward. Three sources feed it: the exact `task_output` (or tool input) your bridge already has in hand, copied verbatim as a machine-observed fact; the event that started the run, e.g. the CrewAI kickoff input or the webhook payload carrying `execution_id`; and the agent's own justification, which is only trustworthy if the task's output model required it as a field - for example a `reason` key that CrewAI must populate as part of the same `task_output` this bridge is already reading, rather than being reconstructed after the task finished.
+
+Keep provenance separated inside `context`: verbatim task/tool output and run metadata under `machine_observed`, the model-authored `reason` under `agent_reported`. Two rules follow: `agent_reported` text must never change `required_role`, `approval_policy`, or routing - it only gives the human reviewer color, since a prompt-injected crew can produce a very persuasive justification for a bad action. And if a high-risk task output arrives without its required `reason`, fail closed (reject or dead-letter the review) instead of asking the reviewer to guess why. See https://contro1.com/docs/requests-api for the full pattern.
 
 ## Resume mapping example
 

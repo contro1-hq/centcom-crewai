@@ -41,10 +41,18 @@ def crewai_hitl():
     execution_id = str(payload.get("execution_id", "")).strip()
     task_id = str(payload.get("task_id", "")).strip()
     summary = str(payload.get("summary", "CrewAI requested human review")).strip()
-    context: Any = payload.get("context", {})
+    raw_context: dict[str, Any] = payload.get("context", {}) if isinstance(payload.get("context"), dict) else {}
 
     if not execution_id or not task_id:
         return jsonify({"error": "execution_id and task_id are required"}), 400
+
+    # Split provenance: verbatim task/tool output is machine-observed, `reason` is
+    # agent-reported. `reason` should be a required field on the CrewAI task's output
+    # model so it is produced at decision time, not reconstructed after the fact.
+    # Fail closed for high-risk tasks: if your task marks itself high-risk and this
+    # is empty, reject or dead-letter the review instead of forwarding a guess.
+    tool_input = dict(raw_context)
+    reason = str(tool_input.pop("reason", "") or tool_input.pop("justification", "")).strip() or None
 
     thread_id = contro1_thread_id(execution_id)
 
@@ -63,9 +71,13 @@ def crewai_hitl():
             "priority": "normal",
         },
         "context": {
-            "tool_name": "crewai_resume",
-            "tool_input": context,
-            "summary": summary,
+            "action": {"tool": "crewai_resume", "input": tool_input},
+            "machine_observed": {
+                "triggered_by": summary,
+                "execution_id": execution_id,
+                "task_id": task_id,
+            },
+            "agent_reported": {"justification": reason},
         },
         "continuation": {
             "mode": "instruction",
